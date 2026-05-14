@@ -89,4 +89,5 @@ Edit `terraform/variables.tf` to change defaults (region, timezone, database tie
 
 ## License
 
-MIT
+Apache-2.0 license
+

@@ -1,20 +1,69 @@
-name: Validate
+name: Validate and Plan
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+    inputs:
+      project_id:
+        description: GCP project ID
+        required: true
+        type: string
+      region:
+        description: GCP region
+        required: true
+        default: us-south1
+        type: string
+      service_name:
+        description: Cloud Run service name
+        required: true
+        default: n8n
+        type: string
+      min_instances:
+        description: 0 for scale-to-zero, 1 for always-on
+        required: true
+        default: "0"
+        type: string
+      max_instances:
+        description: Maximum Cloud Run instances
+        required: true
+        default: "3"
+        type: string
 
 jobs:
-  terraform:
-    name: Terraform
+  validate:
+    name: Validate and Plan
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
+    env:
+      TF_VAR_project_id: ${{ inputs.project_id }}
+      TF_VAR_region: ${{ inputs.region }}
+      TF_VAR_service_name: ${{ inputs.service_name }}
+      TF_VAR_min_instances: ${{ inputs.min_instances }}
+      TF_VAR_max_instances: ${{ inputs.max_instances }}
+
     steps:
+      - name: Check required inputs
+        run: |
+          if [ -z "${{ inputs.project_id }}" ]; then
+            echo "❌ project_id is required"
+            exit 1
+          fi
+          echo "✅ project_id: ${{ inputs.project_id }}"
+          echo "✅ region: ${{ inputs.region }}"
+          echo "✅ service_name: ${{ inputs.service_name }}"
+
+      - name: Check GCP_SA_KEY secret
+        env:
+          GCP_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_KEY" ]; then
+            echo "❌ GCP_SA_KEY secret is missing"
+            echo "Add it at: Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+          echo "✅ GCP_SA_KEY secret is configured"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -23,11 +72,60 @@ jobs:
         with:
           terraform_wrapper: false
 
-      - name: Terraform init without backend
-        run: terraform -chdir=terraform init -backend=false
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ inputs.project_id }}
 
-      - name: Terraform fmt
-        run: terraform -chdir=terraform fmt -check
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Verify GCP project access
+        run: |
+          if ! gcloud projects describe "${{ inputs.project_id }}" >/dev/null 2>&1; then
+            echo "❌ Cannot access GCP project ${{ inputs.project_id }}"
+            echo "Check that GCP_SA_KEY has permissions for this project."
+            exit 1
+          fi
+          echo "✅ GCP project is accessible"
+
+      - name: Terraform init
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="${{ inputs.project_id }}-n8n-tfstate"
+
+          if gcloud storage buckets describe "gs://${BUCKET}" --project="${{ inputs.project_id }}" >/dev/null 2>&1; then
+            echo "✅ State bucket found. Initializing with GCS backend..."
+            terraform -chdir=terraform init \
+              -backend-config="bucket=${BUCKET}" \
+              -backend-config="prefix=${{ inputs.service_name }}"
+          else
+            echo "⚠️ State bucket not found. Initializing without backend (plan will show all resources as new)."
+            terraform -chdir=terraform init -backend=false
+          fi
+
+      - name: Terraform format check
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform fmt -check
 
       - name: Terraform validate
-        run: terraform -chdir=terraform validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform validate
+
+      - name: Terraform plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo ""
+          echo "========== TERRAFORM PLAN =========="
+          echo ""
+          terraform -chdir=terraform plan -no-color
+          echo ""
+          echo "===================================="
+          echo "Review the plan above before deploying."
