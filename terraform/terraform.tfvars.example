@@ -1,0 +1,13 @@
+project_id = "your-gcp-project-id"
+
+# us-south1 is Dallas, Texas.
+region       = "us-south1"
+service_name = "n8n"
+
+# Scale to zero for lowest cost, or set min_instances to 1 for scheduled workflows.
+min_instances = 0
+max_instances = 3
+
+# Low-cost default for testing. Increase for production usage.
+database_tier          = "db-f1-micro"
+database_backups_enabled = true

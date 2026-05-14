@@ -1,0 +1,111 @@
+name: Deploy n8n to GCP Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: GCP project ID
+        required: true
+        type: string
+      region:
+        description: GCP region
+        required: true
+        default: us-south1
+        type: string
+      service_name:
+        description: Cloud Run service name
+        required: true
+        default: n8n
+        type: string
+      min_instances:
+        description: 0 for scale-to-zero, 1 for always-on
+        required: true
+        default: "0"
+        type: string
+      max_instances:
+        description: Maximum Cloud Run instances
+        required: true
+        default: "3"
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      PROJECT_ID: ${{ inputs.project_id }}
+      SERVICE_NAME: ${{ inputs.service_name }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_STATE_BUCKET: ${{ inputs.project_id }}-n8n-tfstate
+      TF_VAR_project_id: ${{ inputs.project_id }}
+      TF_VAR_region: ${{ inputs.region }}
+      TF_VAR_service_name: ${{ inputs.service_name }}
+      TF_VAR_min_instances: ${{ inputs.min_instances }}
+      TF_VAR_max_instances: ${{ inputs.max_instances }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ inputs.project_id }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Bootstrap Terraform state bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gcloud services enable \
+            cloudresourcemanager.googleapis.com \
+            serviceusage.googleapis.com \
+            storage.googleapis.com \
+            --project="${PROJECT_ID}"
+
+          if ! gcloud storage buckets describe "gs://${TF_STATE_BUCKET}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            gcloud storage buckets create "gs://${TF_STATE_BUCKET}" \
+              --project="${PROJECT_ID}" \
+              --location="US" \
+              --uniform-bucket-level-access
+          fi
+
+          gcloud storage buckets update "gs://${TF_STATE_BUCKET}" --versioning
+
+      - name: Terraform init
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=${SERVICE_NAME}"
+
+      - name: Terraform validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform fmt -check
+          terraform -chdir=terraform validate
+
+      - name: Terraform apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform apply -auto-approve
+
+      - name: Terraform outputs
+        shell: bash
+        run: terraform -chdir=terraform output
