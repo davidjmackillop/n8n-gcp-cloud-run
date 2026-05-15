@@ -134,6 +134,26 @@ jobs:
             -backend-config="bucket=${BUCKET}" \
             -backend-config="prefix=${{ inputs.service_name }}"
 
+      - name: Sync Terraform state with GCP
+        shell: bash
+        run: |
+          set +e
+          echo "Checking for manually deleted resources..."
+
+          if ! gcloud sql instances describe "${{ inputs.service_name }}-db" --project="${{ inputs.project_id }}" >/dev/null 2>&1; then
+            echo "⚠️ Cloud SQL instance not found in GCP. Removing from Terraform state..."
+            terraform -chdir=terraform state rm google_sql_database.n8n 2>/dev/null || true
+            terraform -chdir=terraform state rm google_sql_user.n8n 2>/dev/null || true
+            terraform -chdir=terraform state rm google_sql_database_instance.n8n 2>/dev/null || true
+          fi
+
+          if ! gcloud run services describe "${{ inputs.service_name }}" --region="${{ inputs.region }}" --project="${{ inputs.project_id }}" >/dev/null 2>&1; then
+            echo "⚠️ Cloud Run service not found in GCP. Removing from Terraform state..."
+            terraform -chdir=terraform state rm google_cloud_run_service_iam_member.public_invoker 2>/dev/null || true
+            terraform -chdir=terraform state rm google_cloud_run_v2_service.n8n 2>/dev/null || true
+          fi
+          set -e
+
       - name: Terraform format check
         shell: bash
         run: |
