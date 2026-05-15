@@ -87,6 +87,14 @@ jobs:
           gcloud auth activate-service-account --key-file="${{ steps.auth.outputs.credentials_file_path }}"
           gcloud config set project "${{ inputs.project_id }}"
 
+      - name: Enable required APIs
+        run: |
+          gcloud services enable \
+            cloudresourcemanager.googleapis.com \
+            serviceusage.googleapis.com \
+            storage.googleapis.com \
+            --project="${{ inputs.project_id }}"
+
       - name: Verify GCP project access
         run: |
           gcloud projects describe "${{ inputs.project_id }}"
