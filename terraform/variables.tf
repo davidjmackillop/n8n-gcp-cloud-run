@@ -6,7 +6,7 @@ variable "project_id" {
 variable "region" {
   description = "GCP region for Cloud Run and Cloud SQL."
   type        = string
-  default     = "us-south1"
+  default     = "us-central1"
 }
 
 variable "service_name" {

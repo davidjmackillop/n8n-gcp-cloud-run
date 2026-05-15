@@ -10,17 +10,22 @@ on:
       region:
         description: GCP region
         required: true
-        default: us-south1
+        default: us-central1
         type: string
       service_name:
         description: Cloud Run service name
         required: true
         default: n8n
         type: string
+      database_name:
+        description: PostgreSQL database name for n8n
+        required: true
+        default: n8n
+        type: string
       min_instances:
         description: 0 for scale-to-zero, 1 for always-on
         required: true
-        default: "0"
+        default: "1"
         type: string
       max_instances:
         description: Maximum Cloud Run instances
@@ -44,6 +49,7 @@ jobs:
       TF_VAR_project_id: ${{ inputs.project_id }}
       TF_VAR_region: ${{ inputs.region }}
       TF_VAR_service_name: ${{ inputs.service_name }}
+      TF_VAR_database_name: ${{ inputs.database_name }}
       TF_VAR_min_instances: ${{ inputs.min_instances }}
       TF_VAR_max_instances: ${{ inputs.max_instances }}
 

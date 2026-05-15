@@ -10,7 +10,7 @@ on:
       region:
         description: GCP region used during deployment
         required: true
-        default: us-south1
+        default: us-central1
         type: string
       service_name:
         description: Cloud Run service name used during deployment
