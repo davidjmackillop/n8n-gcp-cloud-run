@@ -32,21 +32,21 @@ locals {
   cloud_run_sa_id = trimsuffix(substr("${var.service_name}-run", 0, 30), "-")
 
   n8n_env = {
-    DB_POSTGRESDB_DATABASE                  = var.database_name
-    DB_POSTGRESDB_HOST                      = "/cloudsql/${google_sql_database_instance.n8n.connection_name}"
-    DB_POSTGRESDB_PORT                      = "5432"
-    DB_POSTGRESDB_SCHEMA                    = "public"
-    DB_POSTGRESDB_USER                      = var.database_user
-    DB_TYPE                                 = "postgresdb"
-    EXECUTIONS_MODE                         = "regular"
-    GENERIC_TIMEZONE                        = var.timezone
-    N8N_DIAGNOSTICS_ENABLED                 = "false"
-    N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS   = "true"
-    N8N_ENDPOINT_HEALTH                     = "health"
-    N8N_PORT                                = "5678"
-    N8N_PROTOCOL                            = "https"
-    N8N_RUNNERS_ENABLED                     = "true"
-    TZ                                      = var.timezone
+    DB_POSTGRESDB_DATABASE                = var.database_name
+    DB_POSTGRESDB_HOST                    = "/cloudsql/${google_sql_database_instance.n8n.connection_name}"
+    DB_POSTGRESDB_PORT                    = "5432"
+    DB_POSTGRESDB_SCHEMA                  = "public"
+    DB_POSTGRESDB_USER                    = var.database_user
+    DB_TYPE                               = "postgresdb"
+    EXECUTIONS_MODE                       = "regular"
+    GENERIC_TIMEZONE                      = var.timezone
+    N8N_DIAGNOSTICS_ENABLED               = "false"
+    N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS = "true"
+    N8N_ENDPOINT_HEALTH                   = "health"
+    N8N_PORT                              = "5678"
+    N8N_PROTOCOL                          = "https"
+    N8N_RUNNERS_ENABLED                   = "true"
+    TZ                                    = var.timezone
   }
 }
 
