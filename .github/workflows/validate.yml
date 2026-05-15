@@ -73,6 +73,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Authenticate to Google Cloud
+        id: auth
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -81,13 +82,14 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Authenticate gcloud CLI
+        run: |
+          gcloud auth activate-service-account --key-file="${{ steps.auth.outputs.credentials_file_path }}"
+          gcloud config set project "${{ inputs.project_id }}"
+
       - name: Verify GCP project access
         run: |
-          if ! gcloud projects describe "${{ inputs.project_id }}" >/dev/null 2>&1; then
-            echo "❌ Cannot access GCP project ${{ inputs.project_id }}"
-            echo "Check that GCP_SA_KEY has permissions for this project."
-            exit 1
-          fi
+          gcloud projects describe "${{ inputs.project_id }}"
           echo "✅ GCP project is accessible"
 
       - name: Terraform init
