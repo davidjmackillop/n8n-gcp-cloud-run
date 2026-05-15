@@ -100,21 +100,32 @@ jobs:
           gcloud projects describe "${{ inputs.project_id }}"
           echo "✅ GCP project is accessible"
 
-      - name: Terraform init
+      - name: Bootstrap Terraform state bucket
         shell: bash
         run: |
           set -euo pipefail
           BUCKET="${{ inputs.project_id }}-n8n-tfstate"
 
-          if gcloud storage buckets describe "gs://${BUCKET}" --project="${{ inputs.project_id }}" >/dev/null 2>&1; then
-            echo "✅ State bucket found. Initializing with GCS backend..."
-            terraform -chdir=terraform init \
-              -backend-config="bucket=${BUCKET}" \
-              -backend-config="prefix=${{ inputs.service_name }}"
+          if ! gcloud storage buckets describe "gs://${BUCKET}" --project="${{ inputs.project_id }}" >/dev/null 2>&1; then
+            echo "⚠️ State bucket not found. Creating..."
+            gcloud storage buckets create "gs://${BUCKET}" \
+              --project="${{ inputs.project_id }}" \
+              --location="US" \
+              --uniform-bucket-level-access
+            gcloud storage buckets update "gs://${BUCKET}" --versioning
+            echo "✅ State bucket created."
           else
-            echo "⚠️ State bucket not found. Initializing without backend (plan will show all resources as new)."
-            terraform -chdir=terraform init -backend=false
+            echo "✅ State bucket found."
           fi
+
+      - name: Terraform init
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="${{ inputs.project_id }}-n8n-tfstate"
+          terraform -chdir=terraform init \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="prefix=${{ inputs.service_name }}"
 
       - name: Terraform format check
         shell: bash
